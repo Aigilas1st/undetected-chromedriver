@@ -1,0 +1,141 @@
+import requests
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.common import TimeoutException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
+import time
+import pickle
+import csv
+
+from selenium.webdriver.chrome.options import Options
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+import threading
+
+import time
+
+from selenium.webdriver.support.wait import WebDriverWait
+
+from Pass import *
+games_data = {}
+options = Options()
+driver = webdriver.Chrome(options=options)
+PLAYER = "kstan07_252"
+#Đăng nhập vào chess.com
+def login_chesscom(username, password):
+
+    driver.get("https://www.chess.com/login")
+    time.sleep(4)
+    username_field = driver.find_element(By.ID, "username")
+    username_field.send_keys(username)
+    password_field = driver.find_element(By.ID, "password")
+    password_field.send_keys(password)
+    password_field.send_keys(Keys.RETURN)
+    time.sleep(4)
+login_chesscom(USER_NAME, PASSWORD)
+def get_link():
+    page = 1
+    max_page = 38
+    while page <= max_page:
+        link_page = f"https://www.chess.com/games/archive/{PLAYER}?gameType=live&gameTypeslive%5B%5D=blitz&page={page}"
+        driver.get(link_page)
+        for i in range(1, 51):
+            try:
+                LINK_GAME_BASE = f'//*[@id="games-root-index"]/div[3]/table/tbody/tr[{i}]/td[1]/a'
+                WHITE_PLAYER_BASE = f'//*[@id="games-root-index"]/div[3]/table/tbody/tr[{i}]/td[2]/div/div/div[1]/div/a[1]'
+                BLACK_PLAYER_BASE = f'//*[@id="games-root-index"]/div[3]/table/tbody/tr[{i}]/td[2]/div/div/div[2]/div/a[1]'
+
+                link_game = driver.find_element(By.XPATH, LINK_GAME_BASE).get_attribute('href')
+                game_id = link_game.split("/")[-1]
+                games_data[game_id] ={}
+
+                white_player = driver.find_element(By.XPATH, WHITE_PLAYER_BASE).get_attribute("href").split("/")[-1]
+                black_player = driver.find_element(By.XPATH, BLACK_PLAYER_BASE).get_attribute("href").split("/")[-1]
+                analyze_link = f'https://www.chess.com/analysis/game/live/{game_id}?tab=review'
+                games_data[game_id]["white_player"] = white_player
+                games_data[game_id]["black_player"] = black_player
+                games_data[game_id]["analyze_link"] = analyze_link
+            except:
+                pass
+
+        time.sleep(2)  # Consider using explicit wait instead of fixed time delays
+        page += 1
+        print(f'{page}/{max_page}')
+def get_brl(game):
+    game_link = games_data[game]['analyze_link']
+    driver.get(game_link)
+    white_brilliant_xpath = '//*[@id="board-layout-sidebar"]/div/div/div[2]/div/div/section[2]/div/div/div[1]/div[1]'
+    white_accurate_path = '//*[@id="board-layout-sidebar"]/div/div/div[2]/div/div/section[1]/div/div[1]/div/div[1]'
+    black_brilliant_xpath = '//*[@id="board-layout-sidebar"]/div/div/div[2]/div/div/section[2]/div/div/div[1]/div[3]'
+    black_accurate_path = '//*[@id="board-layout-sidebar"]/div/div/div[2]/div/div/section[1]/div/div[2]/div/div[1]'
+
+    timeout = 10  # You can adjust this timeout value
+
+    # Get elements using WebDriverWait and ExpectedConditions
+    try:
+        white_brilliant_element = WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located((By.XPATH, white_brilliant_xpath))
+        )
+        white_brilliant = white_brilliant_element.text if white_brilliant_element.text else "N/A"
+    except TimeoutException:
+        white_brilliant = "N/A"
+
+    try:
+        white_accurate_element = WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located((By.XPATH, white_accurate_path))
+        )
+        white_accurate = white_accurate_element.text if white_accurate_element.text else "N/A"
+    except TimeoutException:
+        white_accurate = "N/A"
+
+    try:
+        black_brilliant_element = WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located((By.XPATH, black_brilliant_xpath))
+        )
+        black_brilliant = black_brilliant_element.text if black_brilliant_element.text else "N/A"
+    except TimeoutException:
+        black_brilliant = "N/A"
+
+    try:
+        black_accurate_element = WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located((By.XPATH, black_accurate_path))
+        )
+        black_accurate = black_accurate_element.text if black_accurate_element.text else "N/A"
+    except TimeoutException:
+        black_accurate = "N/A"
+
+    except TimeoutException:
+        black_accurate = "N/A"
+    games_data[game]["white_brilliant"] = white_brilliant
+    games_data[game]["white_accurate"] = white_accurate
+    games_data[game]["black_brilliant"] = black_brilliant
+    games_data[game]["black_accurate"] = black_accurate
+    time.sleep(0.5)
+
+
+get_link()
+print(games_data)
+sumgame = len(games_data)
+soluong = 0
+for game in games_data:
+    get_brl(game)
+    soluong += 1
+    print(f'{soluong}/{sumgame}')
+
+fieldnames = ['game_id', 'white_player', 'black_player', 'analyze_link', 'white_brilliant', 'white_accurate', 'black_brilliant', 'black_accurate']
+
+# Mở file CSV để ghi
+with open('games_data.csv', 'w', newline='') as csvfile:
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+    # Viết tên cột vào file CSV
+    writer.writeheader()
+
+    # Viết dữ liệu của mỗi trò chơi vào file CSV
+    for game_id, game_info in games_data.items():
+        game_info['game_id'] = game_id  # Thêm game_id vào dữ liệu trò chơi
+        writer.writerow(game_info)
